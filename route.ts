@@ -6,156 +6,174 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-06-30.basil'
 })
 
-// Define your pricing plans
-const PLANS = {
-  starter: {
-    name: 'Starter',
-    priceId: process.env.NODE_ENV === 'production'
-      ? 'price_production_starter'
-      : 'price_1234567890', // Create in Stripe dashboard
-    features: {
-      contractsPerMonth: 10,
-      aiCredits: 10,
-      support: 'email'
-    }
-  },
-  professional: {
-    name: 'Professional',
-    priceId: process.env.NODE_ENV === 'production'
-      ? 'price_production_pro'
-      : 'price_0987654321',
-    features: {
-      contractsPerMonth: 50,
-      aiCredits: 50,
-      support: 'priority'
-    }
-  },
-  payAsYouGo: {
-    name: 'Pay As You Go',
-    pricePerContract: 10 // $10 per contract
-  }
-}
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 export async function POST(request: NextRequest) {
   try {
-    const { planType, organizationId, userId, successUrl, cancelUrl } = await request.json()
+    const body = await request.text()
+    const signature = request.headers.get('stripe-signature')!
 
-    // For pay-as-you-go, create a one-time payment
-    if (planType === 'payAsYouGo') {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Contract Analysis',
-              description: 'AI-powered contract review and risk assessment'
-            },
-            unit_amount: 1000 // $10.00
-          },
-          quantity: 1
-        }],
-        mode: 'payment',
-        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: cancelUrl,
-        metadata: {
-          organizationId,
-          userId,
-          productType: 'single_contract'
-        }
-      })
+    let event: Stripe.Event
 
-      return NextResponse.json({ sessionUrl: session.url })
-    }
-
-    // For subscriptions, create or retrieve customer
-    const { data: org } = await supabaseAdmin
-      .from('organizations')
-      .select('stripe_customer_id')
-      .eq('id', organizationId)
-      .single()
-
-    let customerId = org?.stripe_customer_id
-    let userEmail = null;
-
-    if (!customerId) {
-      // Create new Stripe customer
-      const { data: userData } = await supabaseAdmin
-        .from('users')
-        .select('email, full_name')
-        .eq('id', userId)
-        .single()
-
-      userEmail = userData?.email;
-      const customer = await stripe.customers.create({
-        email: userEmail,
-        name: userData?.full_name,
-        metadata: {
-          organizationId
-        }
-      })
-
-      customerId = customer.id
-
-      // Save customer ID
-      await supabaseAdmin
-        .from('organizations')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', organizationId)
-    } else {
-      // Get user email for existing customer
-      const { data: userData } = await supabaseAdmin
-        .from('users')
-        .select('email')
-        .eq('id', userId)
-        .single()
-      
-      userEmail = userData?.email;
-    }
-
-    // Create checkout session for subscription
-    const plan = PLANS[planType as keyof typeof PLANS];
-    
-    // Check if the plan has a priceId (not payAsYouGo)
-    if (!('priceId' in plan)) {
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err)
       return NextResponse.json(
-        { error: 'Invalid plan type for subscription' },
+        { error: 'Invalid signature' },
         { status: 400 }
       )
     }
-    
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [{
-        price: plan.priceId,
-        quantity: 1
-      }],
-      mode: 'subscription',
-      allow_promotion_codes: true,
-      success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl,
-      billing_address_collection: 'auto',
-      customer_email: userEmail, // Now properly defined
-      subscription_data: {
-        trial_period_days: 7,
-        metadata: {
-          organizationId,
-          planType
-        }
-      },
-      metadata: {
-        userId: userId,
-        planType: planType
-      }
-    })
 
-    return NextResponse.json({ sessionUrl: session.url })
+    console.log('Received Stripe webhook:', event.type)
+
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
+        break
+      
+      case 'invoice.payment_succeeded':
+        await handlePaymentSucceeded(event.data.object as Stripe.Invoice)
+        break
+      
+      case 'customer.subscription.created':
+        await handleSubscriptionCreated(event.data.object as Stripe.Subscription)
+        break
+      
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription)
+        break
+      
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription)
+        break
+      
+      default:
+        console.log(`Unhandled event type: ${event.type}`)
+    }
+
+    return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('Checkout error:', error)
+    console.error('Webhook error:', error)
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { error: 'Webhook handler failed' },
       { status: 500 }
     )
   }
+}
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  console.log('Checkout completed:', session.id)
+
+  const { userId, planType, organizationId } = session.metadata || {}
+
+  if (!userId || !organizationId) {
+    console.error('Missing metadata in checkout session')
+    return
+  }
+
+  if (session.mode === 'payment') {
+    // Handle one-time payment (pay-as-you-go)
+    await supabaseAdmin
+      .from('payments')
+      .insert({
+        organization_id: organizationId,
+        user_id: userId,
+        stripe_session_id: session.id,
+        amount: session.amount_total,
+        currency: session.currency,
+        status: 'completed',
+        payment_type: 'one_time',
+        product_type: session.metadata?.productType || 'single_contract'
+      })
+  } else if (session.mode === 'subscription') {
+    // Handle subscription - create subscription record immediately for demo
+    console.log('Subscription checkout completed, creating subscription record')
+
+    // For demo purposes, create the subscription record immediately
+    // In production, this would be handled by the subscription.created webhook
+    if (planType && organizationId) {
+      await supabaseAdmin
+        .from('subscriptions')
+        .upsert({
+          organization_id: organizationId,
+          stripe_subscription_id: session.subscription as string || `demo_sub_${Date.now()}`,
+          stripe_customer_id: session.customer as string || `demo_cus_${Date.now()}`,
+          plan_type: planType,
+          status: 'active',
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+          created_at: new Date().toISOString()
+        })
+
+      console.log('Demo subscription created for organization:', organizationId)
+    }
+  }
+}
+
+async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
+  console.log('Payment succeeded:', invoice.id)
+  
+  if (invoice.subscription) {
+    // Update subscription payment status
+    await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        current_period_start: new Date(invoice.period_start * 1000).toISOString(),
+        current_period_end: new Date(invoice.period_end * 1000).toISOString()
+      })
+      .eq('stripe_subscription_id', invoice.subscription)
+  }
+}
+
+async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
+  console.log('Subscription created:', subscription.id)
+  
+  const { organizationId, planType } = subscription.metadata || {}
+  
+  if (!organizationId || !planType) {
+    console.error('Missing metadata in subscription')
+    return
+  }
+
+  // Create subscription record
+  await supabaseAdmin
+    .from('subscriptions')
+    .insert({
+      organization_id: organizationId,
+      stripe_subscription_id: subscription.id,
+      stripe_customer_id: subscription.customer as string,
+      plan_type: planType,
+      status: subscription.status,
+      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
+    })
+}
+
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  console.log('Subscription updated:', subscription.id)
+  
+  await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status: subscription.status,
+      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
+    })
+    .eq('stripe_subscription_id', subscription.id)
+}
+
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  console.log('Subscription deleted:', subscription.id)
+  
+  await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status: 'canceled',
+      canceled_at: new Date().toISOString()
+    })
+    .eq('stripe_subscription_id', subscription.id)
 }

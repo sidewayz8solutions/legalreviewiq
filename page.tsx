@@ -1,149 +1,240 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Sparkles, Shield, FileText, AlertCircle } from 'lucide-react'
-import styles from './terms.module.css'
+import { ArrowLeft, BarChart3, TrendingUp, Users, FileText, Clock, Download, Calendar } from 'lucide-react'
+import Navigation from '@/components/Navigation'
+import { useUser } from '@/contexts/UserContext'
+import styles from './analytics.module.css'
 
-export default function TermsOfServicePage() {
+export default function AnalyticsPage() {
+  const [timeRange, setTimeRange] = useState('30d')
+  const { user } = useUser()
+
+  // Mock analytics data
+  const analyticsData = {
+    totalContracts: 247,
+    contractsThisMonth: 34,
+    avgProcessingTime: '2.3 min',
+    riskIssuesFound: 89,
+    teamMembers: 12,
+    activeUsers: 8
+  }
+
+  const contractsByMonth = [
+    { month: 'Jan', contracts: 18, risks: 12 },
+    { month: 'Feb', contracts: 22, risks: 8 },
+    { month: 'Mar', contracts: 31, risks: 15 },
+    { month: 'Apr', contracts: 28, risks: 11 },
+    { month: 'May', contracts: 35, risks: 18 },
+    { month: 'Jun', contracts: 42, risks: 22 }
+  ]
+
+  const topRiskCategories = [
+    { category: 'Liability Clauses', count: 23, percentage: 26 },
+    { category: 'Payment Terms', count: 19, percentage: 21 },
+    { category: 'Termination Rights', count: 16, percentage: 18 },
+    { category: 'Intellectual Property', count: 14, percentage: 16 },
+    { category: 'Confidentiality', count: 12, percentage: 13 },
+    { category: 'Other', count: 5, percentage: 6 }
+  ]
+
+  const recentActivity = [
+    { action: 'Contract analyzed', user: 'Sarah Johnson', time: '2 hours ago', contract: 'Vendor Agreement #247' },
+    { action: 'Risk flagged', user: 'Mike Chen', time: '4 hours ago', contract: 'Service Contract #246' },
+    { action: 'Report generated', user: 'Emily Davis', time: '6 hours ago', contract: 'Partnership Agreement #245' },
+    { action: 'Contract uploaded', user: 'John Smith', time: '1 day ago', contract: 'Employment Contract #244' }
+  ]
+
   return (
     <div className={styles.container}>
-      {/* Navigation */}
-      <nav className={styles.nav}>
-        <div className={styles.navContent}>
-          <Link href="/" className={styles.logo}>
-            <Sparkles size={24} />
-            Legal Review IQ
-          </Link>
-          <div className={styles.navLinks}>
-            <Link href="/#features" className={styles.navLink}>Features</Link>
-            <Link href="/how-it-works" className={styles.navLink}>How it Works</Link>
-            <Link href="/pricing" className={styles.navLink}>Pricing</Link>
-            <Link href="/dashboard/contracts/upload" className={styles.ctaButton}>
-              Try Free
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Back Button */}
-      <Link href="/" className={styles.backButton}>
+      <Link href="/profiles" className={styles.backButton}>
         <ArrowLeft size={20} />
-        Back to Home
+        Back to Profiles
       </Link>
 
-      {/* Content */}
       <div className={styles.content}>
         <div className={styles.header}>
           <div className={styles.headerIcon}>
-            <FileText size={48} />
+            <BarChart3 size={32} />
           </div>
-          <h1 className={styles.title}>Terms of Service</h1>
-          <p className={styles.subtitle}>
-            Last updated: December 2024
-          </p>
+          <div>
+            <h1 className={styles.title}>Usage Analytics</h1>
+            <p className={styles.subtitle}>View detailed analytics and usage reports for all profiles</p>
+          </div>
+          <div className={styles.headerActions}>
+            <select 
+              value={timeRange} 
+              onChange={(e) => setTimeRange(e.target.value)}
+              className={styles.timeRangeSelect}
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="1y">Last year</option>
+            </select>
+            <button className={styles.exportButton}>
+              <Download size={16} />
+              Export Report
+            </button>
+          </div>
         </div>
 
-        <div className={styles.document}>
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>1. Agreement to Terms</h2>
-            <p className={styles.paragraph}>
-              By accessing and using Legal Review IQ ("Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
-            </p>
-          </section>
+        {/* Key Metrics */}
+        <div className={styles.metricsGrid}>
+          <div className={styles.metricCard}>
+            <div className={styles.metricIcon}>
+              <FileText size={24} />
+            </div>
+            <div className={styles.metricContent}>
+              <h3>{analyticsData.totalContracts}</h3>
+              <p>Total Contracts</p>
+              <span className={styles.metricChange}>+{analyticsData.contractsThisMonth} this month</span>
+            </div>
+          </div>
+          
+          <div className={styles.metricCard}>
+            <div className={styles.metricIcon}>
+              <Clock size={24} />
+            </div>
+            <div className={styles.metricContent}>
+              <h3>{analyticsData.avgProcessingTime}</h3>
+              <p>Avg Processing Time</p>
+              <span className={styles.metricChange}>-15% from last month</span>
+            </div>
+          </div>
+          
+          <div className={styles.metricCard}>
+            <div className={styles.metricIcon}>
+              <TrendingUp size={24} />
+            </div>
+            <div className={styles.metricContent}>
+              <h3>{analyticsData.riskIssuesFound}</h3>
+              <p>Risk Issues Found</p>
+              <span className={styles.metricChange}>+12% from last month</span>
+            </div>
+          </div>
+          
+          <div className={styles.metricCard}>
+            <div className={styles.metricIcon}>
+              <Users size={24} />
+            </div>
+            <div className={styles.metricContent}>
+              <h3>{analyticsData.activeUsers}/{analyticsData.teamMembers}</h3>
+              <p>Active Team Members</p>
+              <span className={styles.metricChange}>67% engagement rate</span>
+            </div>
+          </div>
+        </div>
 
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>2. Description of Service</h2>
-            <p className={styles.paragraph}>
-              Legal Review IQ provides AI-powered contract analysis services that help users understand contract terms, identify potential risks, and receive plain-English explanations of legal documents. Our service is designed to assist with contract review but does not replace professional legal advice.
-            </p>
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>3. User Responsibilities</h2>
-            <ul className={styles.list}>
-              <li className={styles.listItem}>You must provide accurate information when using our service</li>
-              <li className={styles.listItem}>You are responsible for maintaining the confidentiality of your account</li>
-              <li className={styles.listItem}>You agree not to use the service for any unlawful purposes</li>
-              <li className={styles.listItem}>You understand that our AI analysis is for informational purposes only</li>
-            </ul>
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>4. Privacy and Data Security</h2>
-            <p className={styles.paragraph}>
-              We take your privacy seriously. All uploaded contracts are encrypted in transit and at rest. We automatically delete documents 30 days after analysis unless you choose to delete them sooner. For detailed information about how we handle your data, please review our Privacy Policy.
-            </p>
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>5. Limitation of Liability</h2>
-            <div className={styles.warningBox}>
-              <AlertCircle className={styles.warningIcon} size={24} />
-              <div>
-                <h3 className={styles.warningTitle}>Important Legal Notice</h3>
-                <p className={styles.warningText}>
-                  Legal Review IQ provides AI-powered analysis for informational purposes only. Our service does not constitute legal advice and should not be relied upon as a substitute for consultation with qualified legal professionals. We are not liable for any decisions made based on our analysis.
-                </p>
+        {/* Charts Section */}
+        <div className={styles.chartsSection}>
+          <div className={styles.chartCard}>
+            <h3>Contract Analysis Trends</h3>
+            <div className={styles.chart}>
+              <div className={styles.chartBars}>
+                {contractsByMonth.map((data, index) => (
+                  <div key={index} className={styles.chartBar}>
+                    <div 
+                      className={styles.contractBar}
+                      style={{ height: `${(data.contracts / 50) * 100}%` }}
+                    ></div>
+                    <div 
+                      className={styles.riskBar}
+                      style={{ height: `${(data.risks / 50) * 100}%` }}
+                    ></div>
+                    <span className={styles.chartLabel}>{data.month}</span>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.chartLegend}>
+                <div className={styles.legendItem}>
+                  <div className={styles.legendColor} style={{ backgroundColor: '#3b82f6' }}></div>
+                  <span>Contracts Analyzed</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <div className={styles.legendColor} style={{ backgroundColor: '#ef4444' }}></div>
+                  <span>Risk Issues</span>
+                </div>
               </div>
             </div>
-          </section>
+          </div>
 
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>6. Payment Terms</h2>
-            <p className={styles.paragraph}>
-              Payment for our services is processed securely through Stripe. Subscription fees are billed monthly or annually as selected. You may cancel your subscription at any time, and you will continue to have access until the end of your billing period.
-            </p>
-          </section>
+          <div className={styles.chartCard}>
+            <h3>Top Risk Categories</h3>
+            <div className={styles.riskCategories}>
+              {topRiskCategories.map((risk, index) => (
+                <div key={index} className={styles.riskCategory}>
+                  <div className={styles.riskInfo}>
+                    <span className={styles.riskName}>{risk.category}</span>
+                    <span className={styles.riskCount}>{risk.count} issues</span>
+                  </div>
+                  <div className={styles.riskBar}>
+                    <div 
+                      className={styles.riskProgress}
+                      style={{ width: `${risk.percentage}%` }}
+                    ></div>
+                  </div>
+                  <span className={styles.riskPercentage}>{risk.percentage}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>7. Intellectual Property</h2>
-            <p className={styles.paragraph}>
-              The Legal Review IQ platform, including all software, algorithms, and content, is protected by intellectual property laws. You retain ownership of the contracts you upload, and we do not claim any rights to your documents.
-            </p>
-          </section>
+        {/* Recent Activity */}
+        <div className={styles.activitySection}>
+          <h3>Recent Activity</h3>
+          <div className={styles.activityList}>
+            {recentActivity.map((activity, index) => (
+              <div key={index} className={styles.activityItem}>
+                <div className={styles.activityIcon}>
+                  <FileText size={16} />
+                </div>
+                <div className={styles.activityContent}>
+                  <div className={styles.activityAction}>
+                    <strong>{activity.action}</strong> by {activity.user}
+                  </div>
+                  <div className={styles.activityDetails}>
+                    {activity.contract} • {activity.time}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>8. Termination</h2>
-            <p className={styles.paragraph}>
-              We may terminate or suspend your account immediately, without prior notice or liability, for any reason whatsoever, including without limitation if you breach the Terms.
-            </p>
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>9. Changes to Terms</h2>
-            <p className={styles.paragraph}>
-              We reserve the right to modify or replace these Terms at any time. If a revision is material, we will try to provide at least 30 days notice prior to any new terms taking effect.
-            </p>
-          </section>
-
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>10. Contact Information</h2>
-            <p className={styles.paragraph}>
-              If you have any questions about these Terms of Service, please contact us at legal@legalreviewiq.com.
-            </p>
-          </section>
+        {/* Export Options */}
+        <div className={styles.exportSection}>
+          <h3>Export Options</h3>
+          <div className={styles.exportOptions}>
+            <button className={styles.exportOption}>
+              <Calendar size={20} />
+              <div>
+                <h4>Monthly Report</h4>
+                <p>Comprehensive monthly analytics report</p>
+              </div>
+            </button>
+            <button className={styles.exportOption}>
+              <BarChart3 size={20} />
+              <div>
+                <h4>Risk Analysis Report</h4>
+                <p>Detailed breakdown of risk categories and trends</p>
+              </div>
+            </button>
+            <button className={styles.exportOption}>
+              <Users size={20} />
+              <div>
+                <h4>Team Usage Report</h4>
+                <p>Individual team member activity and performance</p>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className={styles.footer}>
-        <div className={styles.footerContent}>
-          <div className={styles.logo}>
-            <Sparkles size={24} />
-            Legal Review IQ
-          </div>
-          <p className={styles.footerText}>
-            AI-powered contract analysis for modern businesses
-          </p>
-          <div className={styles.footerLinks}>
-            <Link href="/terms" className={styles.footerLink}>Terms of Service</Link>
-            <Link href="/privacy" className={styles.footerLink}>Privacy Policy</Link>
-          </div>
-          <div className={styles.footerCopyright}>
-            © 2024 Legal Review IQ. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
